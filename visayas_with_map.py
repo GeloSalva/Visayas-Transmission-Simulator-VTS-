@@ -7,6 +7,8 @@ import geopandas as gpd
 import momepy
 import contextily as ctx
 import folium
+from streamlit_folium import folium_static
+
 
 edges = [('Ormoc','Babatngon'), ('Babatngon', 'Sta Rita Tap'),('Babatngon','Paranas'),('Sta Rita Tap', 'Sta. Rita'),('Sta Rita Tap','Paranas'),('Paranas','Sta Rita Tap'),('Paranas','Calbayog'),\
                   ('Ormoc','Isabel'),('Ormoc','Maasin'),('Ormoc','Tongonan'),('Kananga','Ormoc'),('Tabango','Kananga'),\
@@ -53,39 +55,34 @@ def affected_edges(G, affected_nodes):
             affected_edges.add(edge)
     return affected_edges
 
-def draw_graph(G, affected_nodes=set(), removed_edges=set()):
-    fig, ax = plt.subplots(figsize=(20, 20), dpi = 500)  # Adjust the canvas size
+def draw_graph_folium(G, affected_nodes=set(), removed_edges=set()):
     gdf = gpd.GeoDataFrame(df1, geometry=gpd.points_from_xy(df1.Longitude, df1.Latitude))
     gdf.crs = 'EPSG:4326'
-    
-    pos = nx.get_node_attributes(G, 'pos')
+    gdf = gdf.to_crs(epsg=3857)
 
+    pos = {node: (gdf.loc[gdf['Substation'] == node, 'geometry'].values[0].x, gdf.loc[gdf['Substation'] == node, 'geometry'].values[0].y) for node in G.nodes}
 
-    
-    nx.draw(G, pos, with_labels=False, width=2, edge_color='#474747', node_color='#FFC125', node_size=200)
-    
-    # Draw removed edges as broken lines
-    for edge in removed_edges:
+    m = folium.Map(location=[10.3157, 123.8854], zoom_start=8, tiles='cartodb positron')
+
+    for node, coords in pos.items():
+        if node in affected_nodes:
+            folium.CircleMarker(location=[coords[1], coords[0]], radius=5, color='red', fill=True, fill_color='red').add_to(m)
+        else:
+            folium.CircleMarker(location=[coords[1], coords[0]], radius=3, color='blue', fill=True, fill_color='blue').add_to(m)
+        folium.Popup(node).add_to(m)
+
+    for edge in G.edges:
         source, target = edge
         if source in pos and target in pos:
             xs, ys = pos[source]
             xt, yt = pos[target]
-            plt.plot([xs, xt], [ys, yt], color='red', linewidth=2, linestyle='dashed')
-    
-    nx.draw_networkx_nodes(G, pos, nodelist=affected_nodes, node_color='red', node_size=500)
-    
-    # Draw affected edges in red
-    affected_edges_list = affected_edges(G, affected_nodes)
-    nx.draw_networkx_edges(G, pos, edgelist=affected_edges_list, edge_color='red', width=2)
-    
-    # Adjust label positions
-    label_pos = {k: (v[0], v[1] + 0.01) for k, v in pos.items()}
-    nx.draw_networkx_labels(G, label_pos, font_size=10, font_family='sans-serif', font_color="black", font_weight="bold")
-    
-    plt.axis('off')
-    ctx.add_basemap(ax, crs=gdf.crs.to_string(), source=ctx.providers.OpenStreetMap.Mapnik)
+            if edge in removed_edges:
+                folium.PolyLine([(ys, xs), (yt, xt)], color='red', weight=2, opacity=1).add_to(m)
+            else:
+                folium.PolyLine([(ys, xs), (yt, xt)], color='blue', weight=1, opacity=0.5).add_to(m)
 
-    return plt
+    return m
+
 
 st.title("Electricity Grid Network Analysis")
 
@@ -133,7 +130,8 @@ if st.button("Line Tripped"):
 
     st.write("Visayas Electricity Grid:")
     plt = draw_graph(G, affected, edges_to_remove)
-    st.pyplot(plt)
+    m = draw_graph_folium(G, affected, edges_to_remove)
+    folium_static(m)
 
     #-- write output
     
@@ -152,5 +150,6 @@ if st.button("Line Tripped"):
 else:
     st.write("Visayas Electricity Grid:")
     plt = draw_graph(G)
-    st.pyplot(plt)
+    m = draw_graph_folium(G)
+    folium_static(m)
 
