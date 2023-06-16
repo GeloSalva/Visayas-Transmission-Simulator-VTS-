@@ -6,3 +6,4 @@ momepy==0.6.0
 networkx==3.1
 pandas==2.0.1
 streamlit==1.12.2
+openpyxl==3.1.2
