@@ -2,7 +2,6 @@ import networkx as nx
 import streamlit as st
 import matplotlib.pyplot as plt
 import pandas as pd
-import warnings
 import geopandas as gpd
 import momepy
 import contextily as ctx
